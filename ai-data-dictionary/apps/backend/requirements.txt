@@ -1,19 +1,19 @@
 # Core Framework
-fastapi==0.109.2
-uvicorn[standard]==0.27.1
-python-multipart==0.0.9
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
 
 # Database
-sqlalchemy==2.0.27
-alembic==1.13.1
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
+sqlalchemy>=2.0.27
+alembic>=1.13.0
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.0
 
 # Database Connectors
-snowflake-connector-python==3.7.0
-snowflake-sqlalchemy==1.5.1
-pyodbc==5.1.0
-pymysql==1.1.0
+# snowflake-connector-python>=3.7.0  # May require compilation on Python 3.14
+# snowflake-sqlalchemy>=1.5.0
+# pyodbc>=5.1.0  # May require compilation on Python 3.14
+pymysql>=1.1.0
 
 # Task Queue
 celery==5.3.6
@@ -21,21 +21,24 @@ redis==5.0.1
 flower==2.0.1
 
 # AI/ML
-openai==1.12.0
-tiktoken==0.6.0
-langchain==0.1.7
-chromadb==0.4.22
+openai>=1.50.0
+tiktoken>=0.8.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+# chromadb>=0.5.0  # Not compatible with Python 3.14 yet (pydantic v1 issue)
+# WORKAROUND: Use Python 3.11-3.13 or wait for chromadb update
 
 # Data Quality
-ydata-profiling==4.6.4
-pandera==0.18.0
-sqlparse==0.4.4
-sqlglot==20.11.0
+# ydata-profiling==4.18.1  # Optional: Requires Python <3.14, uncomment if using Python 3.10-3.13
+pandera>=0.20.0
+sqlparse>=0.5.0
+sqlglot>=25.0.0
 
 # Data Validation
-pydantic==2.6.1
-pydantic-settings==2.1.0
-email-validator==2.1.0
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+email-validator>=2.1.0
 
 # Security
 cryptography==42.0.2
@@ -49,15 +52,10 @@ structlog==24.1.0
 tenacity==8.2.3
 httpx==0.26.0
 
-# Monitoring
-prometheus-client==0.19.0
-
-# Development
-pytest==8.0.0
-pytest-asyncio==0.23.5
-pytest-cov==4.1.0
-pytest-mock==3.12.0
-black==24.1.1
-ruff==0.2.1
-mypy==1.8.0
-pre-commit==3.6.0
+# Development & Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+ruff>=0.8.0
+aiosqlite==0.20.0
