@@ -1,20 +1,13 @@
 "use client";
 
-import { MessageSquare, Send, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { MessageSquare, Send, Sparkles, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { apiClient } from "../../lib/api-client";
+import { AuthStore } from "../../lib/auth-store";
+import { useRouter } from "next/navigation";
+import { listDatabases, type DatabaseResponse } from "../../lib/api/databases";
 
-const mockMessages = [
-  { role: "user" as const, text: "Which tables contain customer information?" },
-  {
-    role: "assistant" as const,
-    text: "Tables with customer-related data:\n\n• **customers** — customer_id, zip_code, city, state\n• **orders** — links to customers via customer_id\n• **order_reviews** — review scores per order/customer\n\nI can show column details or sample queries for any of these.",
-  },
-  { role: "user" as const, text: "Show me the schema for orders" },
-  {
-    role: "assistant" as const,
-    text: "The **orders** table has 8 columns: order_id (uuid), customer_id (uuid), order_status (varchar), order_purchase_timestamp (timestamp), order_approved_at (timestamp), order_delivered_carrier_date (date), order_delivered_customer_date (date), order_estimated_delivery_date (date). It references **customers** and is referenced by **order_items**, **order_payments**, and **order_reviews**.",
-  },
-];
+type Message = { role: "user" | "assistant"; text: string };
 
 const suggestedQuestions = [
   "List all tables in the public schema",
@@ -23,7 +16,74 @@ const suggestedQuestions = [
 ];
 
 export default function ChatPage() {
+  const router = useRouter();
   const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [databases, setDatabases] = useState<DatabaseResponse[]>([]);
+  const [databaseId, setDatabaseId] = useState<number | "">("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    listDatabases()
+      .then((res) => {
+        setDatabases(res.data);
+        if (res.data.length > 0 && databaseId === "") {
+          setDatabaseId(res.data[0].id);
+        }
+      })
+      .catch(() => setDatabases([]));
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+
+    const token = AuthStore.getToken();
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", text }]);
+    setLoading(true);
+
+    try {
+      const response = await apiClient.post<{
+        conversation_id: string;
+        message_id: string;
+        response: string;
+        intent: string;
+        processing_time_ms: number;
+        created_at: string;
+      }>(
+        "/ai/chat",
+        {
+          message: text,
+          database_id: databaseId === "" ? undefined : databaseId,
+        },
+        token
+      );
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: response.response },
+      ]);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to get a reply.";
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: `Error: ${message}` },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col">
@@ -32,14 +92,38 @@ export default function ChatPage() {
       </h2>
 
       <div className="flex min-h-[480px] flex-col rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-sm">
-        {/* Messages area */}
+        {databases.length > 0 && (
+          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-2">
+            <label className="text-sm font-medium text-[var(--color-text-secondary)]">
+              Database:
+            </label>
+            <select
+              value={databaseId}
+              onChange={(e) =>
+                setDatabaseId(e.target.value === "" ? "" : Number(e.target.value))
+              }
+              className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-sm text-[var(--color-text)]"
+            >
+              <option value="">Select...</option>
+              {databases.map((db) => (
+                <option key={db.id} value={db.id}>
+                  {db.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex-1 overflow-auto p-6">
           <div className="flex items-center gap-2 rounded-lg bg-secondary/10 p-3 text-sm text-[var(--color-text-secondary)]">
             <Sparkles className="h-4 w-4 text-secondary" />
-            <span>Ask about tables, columns, lineage, or request SQL. (Mockup — replies are static.)</span>
+            <span>
+              Ask about tables, columns, lineage, or request SQL. Replies use your
+              synced schema and Gemini.
+            </span>
           </div>
           <ul className="mt-4 space-y-6">
-            {mockMessages.map((msg, i) => (
+            {messages.map((msg, i) => (
               <li
                 key={i}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
@@ -59,10 +143,18 @@ export default function ChatPage() {
                 </div>
               </li>
             ))}
+            {loading && (
+              <li className="flex justify-start">
+                <div className="flex items-center gap-2 rounded-2xl bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Thinking…</span>
+                </div>
+              </li>
+            )}
           </ul>
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggested questions */}
         <div className="border-t border-[var(--color-border)] px-6 py-3">
           <p className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">
             Suggested
@@ -81,20 +173,23 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Input */}
         <div className="border-t border-[var(--color-border)] p-4">
           <div className="flex gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-2 focus-within:ring-1 focus-within:ring-primary">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
               placeholder="Ask about your data..."
               className="flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-[var(--color-text-secondary)]"
               aria-label="Chat message"
+              disabled={loading}
             />
             <button
               type="button"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-white hover:opacity-90"
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-white hover:opacity-90 disabled:opacity-50"
               aria-label="Send message"
             >
               <Send className="h-4 w-4" />

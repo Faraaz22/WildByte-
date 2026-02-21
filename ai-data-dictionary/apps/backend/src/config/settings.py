@@ -35,13 +35,16 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/1"
 
     # AI/LLM
-    ai_provider: Literal["openai", "ollama", "auto"] = "openai"
+    ai_provider: Literal["openai", "ollama", "gemini", "auto"] = "openai"
     openai_api_key: str = ""
     openai_model_complex: str = "gpt-4-turbo-preview"
     openai_model_simple: str = "gpt-3.5-turbo"
     openai_embedding_model: str = "text-embedding-3-small"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3:8b"
+    # Gemini (free tier: use gemini-1.5-flash)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-1.5-flash"
 
     # ChromaDB
     chromadb_path: str = "./data/chromadb"

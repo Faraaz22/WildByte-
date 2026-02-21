@@ -7,6 +7,7 @@ from .schemas import router as schemas_router
 from .tables import router as tables_router
 from .lineage import router as lineage_router
 from .tasks import router as tasks_router
+from .stats import router as stats_router
 
 __all__ = [
     "auth_router",
@@ -16,4 +17,5 @@ __all__ = [
     "tables_router",
     "lineage_router",
     "tasks_router",
+    "stats_router",
 ]
