@@ -65,15 +65,17 @@ export default function LineagePage() {
       (upstreamByTarget.get(n.id)?.length ?? 0) > 0 &&
       (downstreamBySource.get(n.id)?.length ?? 0) > 0
   );
+  // onlyUpstream: pure source nodes — no parents of their own, but feed into others (= root/upstream)
   const onlyUpstream = nodes.filter(
-    (n) =>
-      (upstreamByTarget.get(n.id)?.length ?? 0) > 0 &&
-      !(downstreamBySource.get(n.id)?.length ?? 0)
-  );
-  const onlyDownstream = nodes.filter(
     (n) =>
       !(upstreamByTarget.get(n.id)?.length ?? 0) &&
       (downstreamBySource.get(n.id)?.length ?? 0) > 0
+  );
+  // onlyDownstream: pure sink nodes — fed by others but produce nothing (= leaf/downstream)
+  const onlyDownstream = nodes.filter(
+    (n) =>
+      (upstreamByTarget.get(n.id)?.length ?? 0) > 0 &&
+      !(downstreamBySource.get(n.id)?.length ?? 0)
   );
 
   return (
