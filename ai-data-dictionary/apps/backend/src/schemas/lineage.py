@@ -36,6 +36,9 @@ class LineageEdgeResponse(BaseModel):
     target: int  # downstream_table_id
     relationship_type: str
     label: Optional[str] = None
+    column_mapping: Optional[list[dict]] = None  # e.g. [{"referenced_column": "id", "referencing_column": "customer_id"}]
+    cardinality: Optional[str] = None  # one_to_one, one_to_many, many_to_many (via join table)
+    is_join_table: Optional[bool] = None
 
 
 class LineageGraphResponse(BaseModel):

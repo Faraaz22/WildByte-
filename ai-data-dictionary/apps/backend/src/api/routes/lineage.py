@@ -60,6 +60,9 @@ async def get_full_lineage(
             target=e.downstream_table_id,
             relationship_type=e.relationship_type,
             label=e.description,
+            column_mapping=e.column_mapping.get("pairs", []) if e.column_mapping else None,
+            cardinality=e.metadata_json.get("cardinality") if e.metadata_json else None,
+            is_join_table=e.metadata_json.get("is_join_table") if e.metadata_json else None,
         )
         for e in edges_result.scalars().all()
     ]
@@ -121,6 +124,9 @@ async def get_table_lineage(
             target=e.downstream_table_id,
             relationship_type=e.relationship_type,
             label=e.description,
+            column_mapping=e.column_mapping.get("pairs", []) if e.column_mapping else None,
+            cardinality=e.metadata_json.get("cardinality") if e.metadata_json else None,
+            is_join_table=e.metadata_json.get("is_join_table") if e.metadata_json else None,
         )
         for e in edges
     ]

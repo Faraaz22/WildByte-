@@ -14,6 +14,7 @@ from src.api.routes import (
     tables_router,
     lineage_router,
     tasks_router,
+    stats_router,
 )
 
 settings = get_settings()
@@ -51,6 +52,7 @@ app.include_router(schemas_router, prefix=settings.api_v1_prefix)
 app.include_router(tables_router, prefix=settings.api_v1_prefix)
 app.include_router(lineage_router, prefix=settings.api_v1_prefix)
 app.include_router(tasks_router, prefix=settings.api_v1_prefix)
+app.include_router(stats_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/")

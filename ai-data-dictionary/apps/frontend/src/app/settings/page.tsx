@@ -171,7 +171,7 @@ export default function SettingsPage() {
                   Saving &amp; extracting schemas…
                 </>
               ) : (
-                "Save &amp; connect"
+                "Save Connection"
               )}
             </button>
             {saveStatus === "done" && (

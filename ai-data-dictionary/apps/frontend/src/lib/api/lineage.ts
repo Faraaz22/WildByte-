@@ -13,11 +13,19 @@ export interface LineageNode {
   level: number;
 }
 
+export interface LineageEdgeColumnPair {
+  referenced_column?: string;
+  referencing_column?: string;
+}
+
 export interface LineageEdge {
   source: number;
   target: number;
   relationship_type: string;
   label?: string | null;
+  column_mapping?: LineageEdgeColumnPair[] | null;
+  cardinality?: string | null; // one_to_one, one_to_many, many_to_many
+  is_join_table?: boolean | null;
 }
 
 export interface LineageFullGraphResponse {
