@@ -16,6 +16,20 @@ class DatabaseType(str, Enum):
     MYSQL = "mysql"
 
 
+class TestConnectionByUriRequest(BaseModel):
+    """Schema for testing a database connection by URI."""
+
+    connection_uri: str = Field(..., min_length=1, description="PostgreSQL URI, e.g. postgresql://user:pass@host:5432/dbname")
+
+
+class CreateDatabaseFromUriRequest(BaseModel):
+    """Schema for creating a database connection from a URI."""
+
+    name: str = Field(..., min_length=1, max_length=100, description="Display name for the connection")
+    connection_uri: str = Field(..., min_length=1, description="PostgreSQL URI")
+    description: Optional[str] = Field(None, description="Optional description")
+
+
 class DatabaseCreate(BaseModel):
     """Schema for creating a new database connection."""
 

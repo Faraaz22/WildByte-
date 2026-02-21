@@ -54,6 +54,17 @@ async def login(
     )
 
 
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(current_user: CurrentUser) -> TokenResponse:
+    """Issue a new access token using current valid token."""
+    access_token = create_access_token(subject=current_user.id)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in_hours=settings.jwt_expiration_hours,
+    )
+
+
 @router.post("/logout")
 async def logout() -> dict:
     """

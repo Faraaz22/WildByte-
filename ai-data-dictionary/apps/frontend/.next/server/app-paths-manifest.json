@@ -1,7 +1,6 @@
 {
+  "/not-found": "app/not-found.js",
   "/page": "app/page.js",
-  "/settings/page": "app/settings/page.js",
-  "/tables/page": "app/tables/page.js",
-  "/lineage/page": "app/lineage/page.js",
-  "/chat/page": "app/chat/page.js"
+  "/login/page": "app/login/page.js",
+  "/settings/page": "app/settings/page.js"
 }

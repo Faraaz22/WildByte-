@@ -1,27 +1,62 @@
 "use client";
 
-import { Search, Table2, Filter, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Table2, Filter, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
-
-const mockTables = [
-  { name: "orders", schema: "public", rows: "99,441", updated: "2h ago", docs: true },
-  { name: "order_items", schema: "public", rows: "112,650", updated: "2h ago", docs: true },
-  { name: "customers", schema: "public", rows: "99,096", updated: "2h ago", docs: true },
-  { name: "products", schema: "public", rows: "32,951", updated: "2h ago", docs: true },
-  { name: "sellers", schema: "public", rows: "3,095", updated: "2h ago", docs: false },
-  { name: "order_reviews", schema: "public", rows: "99,324", updated: "2h ago", docs: true },
-  { name: "order_payments", schema: "public", rows: "103,886", updated: "2h ago", docs: true },
-  { name: "geolocation", schema: "public", rows: "8,009", updated: "2h ago", docs: false },
-];
+import { listTables, type TableResponse } from "../../lib/api/tables";
+import { listSchemas, type SchemaResponse } from "../../lib/api/schemas";
 
 export default function TablesPage() {
+  const [tables, setTables] = useState<TableResponse[]>([]);
+  const [schemas, setSchemas] = useState<SchemaResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [schemaFilter, setSchemaFilter] = useState<number | "all">("all");
+  const [search, setSearch] = useState("");
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const [tablesRes, schemasRes] = await Promise.all([
+          listTables({
+            page: 1,
+            page_size: 100,
+            schema_id: schemaFilter === "all" ? undefined : schemaFilter,
+            search: search || undefined,
+          }),
+          listSchemas(),
+        ]);
+        if (!cancelled) {
+          setTables(tablesRes.data);
+          setTotal(tablesRes.total);
+          setSchemas(schemasRes);
+        }
+      } catch (_e) {
+        if (!cancelled) {
+          setTables([]);
+          setSchemas([]);
+          setTotal(0);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [schemaFilter, search]);
+
+  const schemaNameById = Object.fromEntries(schemas.map((s) => [s.id, s.name]));
+
   return (
     <div className="mx-auto max-w-7xl">
       <h2 className="mb-6 text-2xl font-semibold text-[var(--color-text)]">
         Tables
       </h2>
 
-      {/* Search and filters mockup */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
         <label className="relative flex-1">
           <span className="sr-only">Search tables</span>
@@ -29,60 +64,85 @@ export default function TablesPage() {
           <input
             type="search"
             placeholder="Search tables, columns..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-2.5 pl-10 pr-4 text-sm placeholder:text-[var(--color-text-secondary)] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             aria-label="Search tables"
           />
         </label>
-        <button
-          type="button"
-          className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
-          aria-label="Filter"
-        >
-          <Filter className="h-4 w-4" />
-          Schema: All
-        </button>
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-[var(--color-text-secondary)]" />
+          <select
+            value={schemaFilter === "all" ? "all" : schemaFilter}
+            onChange={(e) =>
+              setSchemaFilter(e.target.value === "all" ? "all" : Number(e.target.value))
+            }
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5 text-sm font-medium text-[var(--color-text)]"
+            aria-label="Filter by schema"
+          >
+            <option value="all">Schema: All</option>
+            {schemas.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Table list mockup */}
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-sm">
         <div className="border-b border-[var(--color-border)] px-6 py-4">
           <div className="flex items-center gap-2">
-            <Table2 className="h-5 w-5 text-[var(--color-text-secondary)]" />
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin text-[var(--color-text-secondary)]" />
+            ) : (
+              <Table2 className="h-5 w-5 text-[var(--color-text-secondary)]" />
+            )}
             <span className="font-medium text-[var(--color-text)]">
-              {mockTables.length} tables
+              {loading ? "Loading…" : `${total} tables`}
             </span>
           </div>
         </div>
-        <ul className="divide-y divide-[var(--color-border)]">
-          {mockTables.map((t) => (
-            <li key={t.name}>
-              <Link
-                href={`/tables/${t.name}`}
-                className="flex flex-wrap items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--color-bg-secondary)] sm:flex-nowrap"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-[var(--color-text)]">{t.name}</p>
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    {t.schema} · {t.rows} rows
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="text-[var(--color-text-secondary)]">
-                    Updated {t.updated}
-                  </span>
-                  {t.docs ? (
-                    <span className="rounded bg-[var(--color-success)]/15 px-2 py-0.5 text-xs font-medium text-[var(--color-success)]">
-                      Documented
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--color-text-secondary)]" />
+          </div>
+        ) : tables.length === 0 ? (
+          <div className="px-6 py-12 text-center text-sm text-[var(--color-text-secondary)]">
+            No tables found. Connect a database in Settings and run sync to extract schemas.
+          </div>
+        ) : (
+          <ul className="divide-y divide-[var(--color-border)]">
+            {tables.map((t) => (
+              <li key={t.id}>
+                <Link
+                  href={`/tables/${t.id}`}
+                  className="flex flex-wrap items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--color-bg-secondary)] sm:flex-nowrap"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-[var(--color-text)]">{t.name}</p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      {schemaNameById[t.schema_id] ?? "—"} · {t.row_count != null ? t.row_count.toLocaleString() : "—"} rows
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-[var(--color-text-secondary)]">
+                      {t.updated_at ? new Date(t.updated_at).toLocaleDateString() : "—"}
                     </span>
-                  ) : (
-                    <span className="text-[var(--color-text-secondary)]">—</span>
-                  )}
-                  <ChevronRight className="h-4 w-4 text-[var(--color-text-secondary)]" />
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                    {t.ai_generated_description ? (
+                      <span className="rounded bg-[var(--color-success)]/15 px-2 py-0.5 text-xs font-medium text-[var(--color-success)]">
+                        Documented
+                      </span>
+                    ) : (
+                      <span className="text-[var(--color-text-secondary)]">—</span>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-[var(--color-text-secondary)]" />
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

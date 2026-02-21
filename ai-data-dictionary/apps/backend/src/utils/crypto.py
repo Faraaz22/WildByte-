@@ -54,3 +54,46 @@ class CredentialManager:
             Base64-encoded encryption key
         """
         return Fernet.generate_key().decode()
+
+
+# Module-level functions for convenience
+def encrypt_connection_string(plaintext: str, encryption_key: str | None = None) -> str:
+    """
+    Encrypt a database connection string.
+    
+    Args:
+        plaintext: Connection string to encrypt
+        encryption_key: Encryption key (uses ENCRYPTION_KEY from settings if not provided)
+        
+    Returns:
+        Encrypted connection string
+    """
+    from src.config.settings import get_settings
+    
+    if encryption_key is None:
+        settings = get_settings()
+        encryption_key = settings.encryption_key
+    
+    manager = CredentialManager(encryption_key)
+    return manager.encrypt(plaintext)
+
+
+def decrypt_connection_string(encrypted: str, encryption_key: str | None = None) -> str:
+    """
+    Decrypt a database connection string.
+    
+    Args:
+        encrypted: Encrypted connection string
+        encryption_key: Encryption key (uses ENCRYPTION_KEY from settings if not provided)
+        
+    Returns:
+        Decrypted connection string
+    """
+    from src.config.settings import get_settings
+    
+    if encryption_key is None:
+        settings = get_settings()
+        encryption_key = settings.encryption_key
+    
+    manager = CredentialManager(encryption_key)
+    return manager.decrypt(encrypted)

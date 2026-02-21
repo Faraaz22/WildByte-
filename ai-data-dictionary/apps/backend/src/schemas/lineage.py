@@ -44,3 +44,10 @@ class LineageGraphResponse(BaseModel):
     nodes: list[LineageNodeResponse]
     edges: list[LineageEdgeResponse]
     root_table_id: int
+
+
+class LineageFullGraphResponse(BaseModel):
+    """Full lineage graph (all tables, optional database filter)."""
+
+    nodes: list[LineageNodeResponse]
+    edges: list[LineageEdgeResponse]

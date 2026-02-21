@@ -1,23 +1,28 @@
 """Database routes per PROJECT_RULES: POST/GET databases, GET schemas, POST sync."""
 
 from typing import Annotated
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy import func
 
 from src.api.dependencies import CurrentUser, get_db
 from src.config.settings import get_settings
-from src.models.database import Database
+from src.models.database import Database, DatabaseType
 from src.models.schema import Schema
 from src.schemas.database import (
     DatabaseCreate,
     DatabaseUpdate,
     DatabaseResponse,
     DatabaseListResponse,
+    TestConnectionByUriRequest,
+    CreateDatabaseFromUriRequest,
 )
 from src.schemas.schema import SchemaResponse
-from src.utils.crypto import CredentialManager
+from src.utils.crypto import CredentialManager, decrypt_connection_string
+from src.services.schema_extraction import _to_asyncpg_uri, extract_and_sync_postgres
 
 router = APIRouter(prefix="/databases", tags=["databases"])
 settings = get_settings()
@@ -49,6 +54,17 @@ def _build_connection_string(
     return f"{db_type}://{username}:***@{host}:{port}/{database_name}"
 
 
+def _parse_pg_uri(uri: str) -> dict:
+    """Parse postgresql URI into components for Database model (host, port, database_name)."""
+    parsed = urlparse(uri)
+    path = (parsed.path or "").lstrip("/").split("/")[0] or ""
+    return {
+        "host": parsed.hostname or "",
+        "port": parsed.port or 5432,
+        "database_name": path or "postgres",
+    }
+
+
 @router.get("", response_model=DatabaseListResponse)
 async def list_databases(
     current_user: CurrentUser,
@@ -71,6 +87,76 @@ async def list_databases(
         page_size=page_size,
         total_pages=total_pages,
     )
+
+
+@router.post("/test-connection")
+async def test_connection_by_uri(
+    body: TestConnectionByUriRequest,
+    current_user: CurrentUser,
+) -> dict:
+    """Test a PostgreSQL connection by URI. Returns { connected: true/false, message?: string }."""
+    uri = body.connection_uri.strip()
+    if not uri.startswith("postgresql"):
+        return {"connected": False, "message": "Only PostgreSQL URIs are supported (postgresql://...)"}
+    async_uri = _to_asyncpg_uri(uri)
+    engine = create_async_engine(async_uri, pool_pre_ping=True)
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        await engine.dispose()
+        return {"connected": True, "message": "Connected"}
+    except Exception as e:
+        try:
+            await engine.dispose()
+        except Exception:
+            pass
+        return {"connected": False, "message": str(e)}
+
+
+@router.post("/from-uri", response_model=DatabaseResponse, status_code=status.HTTP_201_CREATED)
+async def create_database_from_uri(
+    body: CreateDatabaseFromUriRequest,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> DatabaseResponse:
+    """Create a database connection from a PostgreSQL URI, then run initial schema sync."""
+    uri = body.connection_uri.strip()
+    if not uri.startswith("postgresql"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PostgreSQL URIs are supported (postgresql://...)",
+        )
+    parsed = _parse_pg_uri(uri)
+    encrypted = _encrypt_connection_string(uri)
+    record = Database(
+        name=body.name,
+        db_type=DatabaseType.POSTGRESQL,
+        connection_string_encrypted=encrypted,
+        description=body.description,
+        host=parsed.get("host"),
+        port=parsed.get("port"),
+        database_name=parsed.get("database_name"),
+        sync_status="pending",
+    )
+    db.add(record)
+    await db.flush()
+    await db.refresh(record)
+    # Run sync immediately so schemas/tables appear
+    try:
+        try:
+            conn_str = decrypt_connection_string(record.connection_string_encrypted)
+        except Exception:
+            conn_str = uri if encrypted == "placeholder_encrypted" else ""
+        if not conn_str or conn_str == "placeholder_encrypted":
+            conn_str = uri
+        await extract_and_sync_postgres(db, record.id, conn_str)
+        await db.refresh(record)
+    except Exception as e:
+        record.sync_status = "error"
+        record.sync_error = str(e)
+        await db.flush()
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    return DatabaseResponse.model_validate(record)
 
 
 @router.post("", response_model=DatabaseResponse, status_code=status.HTTP_201_CREATED)
@@ -166,13 +252,13 @@ async def list_database_schemas(
     return [SchemaResponse.model_validate(s) for s in schemas]
 
 
-@router.post("/{database_id}/sync", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{database_id}/sync")
 async def sync_database(
     database_id: int,
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
-    """Start schema sync (async). Returns task_id for polling."""
+    """Run schema extraction from the target database and persist schemas/tables/columns/lineage."""
     result = await db.execute(
         select(Database).where(
             Database.id == database_id,
@@ -182,13 +268,23 @@ async def sync_database(
     row = result.scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Database not found")
-    import uuid
-    task_id = f"task_{uuid.uuid4().hex[:12]}"
-    return {
-        "task_id": task_id,
-        "status": "pending",
-        "status_url": f"/api/v1/tasks/{task_id}",
-    }
+    try:
+        conn_str = decrypt_connection_string(row.connection_string_encrypted)
+    except Exception:
+        conn_str = "placeholder_encrypted"
+    try:
+        summary = await extract_and_sync_postgres(db, database_id, conn_str)
+        await db.refresh(row)
+        return {
+            "status": "completed",
+            "message": "Schema sync completed",
+            "database_id": database_id,
+            **summary,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
 
 @router.delete("/{database_id}", status_code=status.HTTP_204_NO_CONTENT)

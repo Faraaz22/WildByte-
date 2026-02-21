@@ -1,5 +1,7 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,10 +17,21 @@ from src.api.routes import (
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events."""
+    print(f"Starting {settings.app_name} v{settings.app_version}")
+    yield
+    print("Shutting down")
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
+    description="AI Data Dictionary API",
     debug=settings.debug,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -29,7 +42,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API v1 routes (PROJECT_RULES: /api/v1/...)
+# API v1 (PROJECT_RULES)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(databases_router, prefix=settings.api_v1_prefix)
 app.include_router(schemas_router, prefix=settings.api_v1_prefix)
@@ -38,15 +51,8 @@ app.include_router(lineage_router, prefix=settings.api_v1_prefix)
 app.include_router(tasks_router, prefix=settings.api_v1_prefix)
 
 
-@app.get("/health")
-async def health():
-    """Health check for load balancers and readiness probes."""
-    return {"status": "ok", "version": settings.app_version}
-
-
 @app.get("/")
 async def root():
-    """Root redirect or API info."""
     return {
         "app": settings.app_name,
         "version": settings.app_version,
@@ -54,3 +60,8 @@ async def root():
         "health": "/health",
         "api": settings.api_v1_prefix,
     }
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": settings.app_version}
