@@ -9,6 +9,7 @@ from alembic import context
 
 # Import all models to ensure they're registered with Base.metadata
 from src.config.database import Base
+from src.config.settings import get_settings
 from src.models import (
     Database,
     Schema,
@@ -23,6 +24,11 @@ from src.models import (
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Use DATABASE_URL from .env; Alembic needs a sync driver (psycopg2)
+_settings = get_settings()
+_sync_url = _settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://").replace("postgresql+psycopg://", "postgresql+psycopg2://")
+config.set_main_option("sqlalchemy.url", _sync_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

@@ -21,11 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Create all initial tables."""
     
-    # Create database_type enum
-    op.execute("CREATE TYPE database_type AS ENUM ('postgresql', 'snowflake', 'sqlserver', 'mysql')")
-    
-    # Create user_role enum
-    op.execute("CREATE TYPE user_role AS ENUM ('viewer', 'editor', 'analyst', 'admin')")
+    # Enums (database_type, user_role) are created by sa.Enum in create_table below
     
     # Create databases table
     op.create_table(
@@ -170,7 +166,7 @@ def upgrade() -> None:
     )
     op.create_index('idx_quality_metrics_table_id', 'quality_metrics', ['table_id'])
     op.create_index('idx_quality_metrics_composite', 'quality_metrics', 
-                    ['table_id', 'metric_type', sa.text('measured_at DESC')])
+                    ['table_id', 'metric_type', 'measured_at'])
     op.create_index('idx_quality_metrics_violations', 'quality_metrics', 
                     ['is_violation', 'violation_severity'])
     
@@ -233,7 +229,7 @@ def upgrade() -> None:
             CREATE TRIGGER update_{table}_updated_at
             BEFORE UPDATE ON {table}
             FOR EACH ROW
-            EXECUTE FUNCTION update_updated_at_column();
+            EXECUTE PROCEDURE update_updated_at_column();
         """)
 
 

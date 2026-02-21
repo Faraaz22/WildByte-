@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
     # Security
     encryption_key: str = ""  # Fernet encryption key for credentials
-    jwt_secret_key: str = ""  # JWT signing key
+    jwt_secret_key: str = "dev-secret-change-in-production"  # JWT signing key
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
 

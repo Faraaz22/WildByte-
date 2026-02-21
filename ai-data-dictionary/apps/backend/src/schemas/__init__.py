@@ -18,6 +18,7 @@ from .lineage import LineageResponse, LineageGraphResponse
 from .quality import QualityMetricResponse, QualityReportResponse
 from .task import TaskStatusResponse
 from .chat import ChatMessageRequest, ChatMessageResponse
+from .auth import LoginRequest, TokenResponse, UserResponse
 
 __all__ = [
     "DatabaseCreate",
@@ -37,4 +38,7 @@ __all__ = [
     "TaskStatusResponse",
     "ChatMessageRequest",
     "ChatMessageResponse",
+    "LoginRequest",
+    "TokenResponse",
+    "UserResponse",
 ]
