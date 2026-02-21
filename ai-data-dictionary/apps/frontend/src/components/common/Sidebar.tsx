@@ -8,11 +8,13 @@ import {
   Table2,
   GitBranch,
   Settings,
+  Database,
 } from "lucide-react";
 import { clsx } from "clsx";
 
 const navItems = [
   { href: "/", label: "Home", icon: LayoutDashboard },
+  { href: "/databases", label: "Databases", icon: Database },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/tables", label: "Tables", icon: Table2 },
   { href: "/lineage", label: "Lineage", icon: GitBranch },

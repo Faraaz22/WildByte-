@@ -1,4 +1,4 @@
-// File: C:\Users\faraa\OneDrive\Desktop\WildByte-\ai-data-dictionary\apps\frontend\src\app\lineage\page.tsx
+// File: D:\AI data dictionary Agent\ai-data-dictionary\apps\frontend\src\app\lineage\page.tsx
 import * as entry from '../../../../src/app/lineage/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

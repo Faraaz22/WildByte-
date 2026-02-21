@@ -1,7 +1,9 @@
 {
+  "/databases/page": "app/databases/page.js",
   "/page": "app/page.js",
+  "/login/page": "app/login/page.js",
   "/chat/page": "app/chat/page.js",
-  "/settings/page": "app/settings/page.js",
   "/tables/page": "app/tables/page.js",
-  "/lineage/page": "app/lineage/page.js"
+  "/lineage/page": "app/lineage/page.js",
+  "/settings/page": "app/settings/page.js"
 }
