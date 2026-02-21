@@ -1,6 +1,11 @@
 {
   "/not-found": "app/not-found.js",
+  "/databases/page": "app/databases/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/databases/new/page": "app/databases/new/page.js",
+  "/lineage/page": "app/lineage/page.js",
+  "/tables/page": "app/tables/page.js",
+  "/tables/[id]/page": "app/tables/[id]/page.js",
   "/page": "app/page.js",
-  "/login/page": "app/login/page.js",
-  "/settings/page": "app/settings/page.js"
+  "/chat/page": "app/chat/page.js"
 }

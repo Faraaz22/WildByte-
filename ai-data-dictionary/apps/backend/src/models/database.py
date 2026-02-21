@@ -40,7 +40,12 @@ class Database(Base):
     # Required fields
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     db_type: Mapped[DatabaseType] = mapped_column(
-        SQLEnum(DatabaseType, name="database_type", create_constraint=True),
+        SQLEnum(
+            DatabaseType,
+            name="database_type",
+            create_constraint=True,
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False,
     )
     connection_string_encrypted: Mapped[str] = mapped_column(Text, nullable=False)

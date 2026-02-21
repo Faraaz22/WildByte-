@@ -11,7 +11,7 @@ import {
   Type,
   Loader2,
 } from "lucide-react";
-import { getTable, type TableDetailResponse } from "../../lib/api/tables";
+import { getTable, type TableDetailResponse } from "../../../lib/api/tables";
 
 export default function TableDetailPage() {
   const params = useParams();

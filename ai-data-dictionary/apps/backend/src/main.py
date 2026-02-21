@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config.settings import get_settings
 from src.api.routes import (
     auth_router,
+    ai_router,
     databases_router,
     schemas_router,
     tables_router,
@@ -44,6 +45,7 @@ app.add_middleware(
 
 # API v1 (PROJECT_RULES)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(ai_router, prefix=settings.api_v1_prefix)
 app.include_router(databases_router, prefix=settings.api_v1_prefix)
 app.include_router(schemas_router, prefix=settings.api_v1_prefix)
 app.include_router(tables_router, prefix=settings.api_v1_prefix)

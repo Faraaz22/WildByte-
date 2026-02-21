@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { GitBranch, Table2, Loader2 } from "lucide-react";
-import { getFullLineage, listDatabases, type LineageNode, type LineageEdge } from "../../lib/api/lineage";
-import type { DatabaseResponse } from "../../lib/api/databases";
+import { getFullLineage, type LineageNode, type LineageEdge } from "../../lib/api/lineage";
+import { listDatabases, type DatabaseResponse } from "../../lib/api/databases";
 
 export default function LineagePage() {
   const [nodes, setNodes] = useState<LineageNode[]>([]);
@@ -43,7 +43,6 @@ export default function LineagePage() {
       .catch(() => setDatabases([]));
   }, []);
 
-  const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const upstreamByTarget = new Map<number, number[]>();
   const downstreamBySource = new Map<number, number[]>();
   for (const e of edges) {

@@ -188,7 +188,47 @@ async def create_database(
     db.add(record)
     await db.flush()
     await db.refresh(record)
+    # Run initial schema sync for PostgreSQL so Tables/Lineage pages have data
+    if body.db_type.value == "postgresql":
+        try:
+            await extract_and_sync_postgres(db, record.id, conn_str)
+            await db.refresh(record)
+        except Exception as e:
+            record.sync_status = "error"
+            record.sync_error = str(e)
+            await db.flush()
     return DatabaseResponse.model_validate(record)
+
+
+@router.post("/test-new")
+async def test_new_database_connection(
+    body: DatabaseCreate,
+    current_user: CurrentUser,
+) -> dict:
+    """Test a new database connection before saving (alias: same as test-connection with built URI)."""
+    uri = _build_connection_string(
+        body.db_type.value,
+        body.host,
+        body.port,
+        body.database_name,
+        body.username,
+        body.password,
+    )
+    if not uri.startswith("postgresql"):
+        return {"connected": False, "message": "Only PostgreSQL is supported for test-new. Use test-connection with a URI for others."}
+    async_uri = _to_asyncpg_uri(uri)
+    engine = create_async_engine(async_uri, pool_pre_ping=True)
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        await engine.dispose()
+        return {"connected": True, "message": "Connected"}
+    except Exception as e:
+        try:
+            await engine.dispose()
+        except Exception:
+            pass
+        return {"connected": False, "message": str(e)}
 
 
 @router.get("/{database_id}", response_model=DatabaseResponse)
