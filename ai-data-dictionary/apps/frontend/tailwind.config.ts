@@ -21,12 +21,12 @@ const config: Config = {
         info: '#06b6d4',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['Fira Code', 'Monaco', 'monospace'],
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [],
 };
 
 export default config;
