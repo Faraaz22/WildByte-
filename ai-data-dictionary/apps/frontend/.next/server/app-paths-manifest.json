@@ -1,7 +1,3 @@
 {
-  "/chat/page": "app/chat/page.js",
-  "/databases/page": "app/databases/page.js",
-  "/databases/new/page": "app/databases/new/page.js",
-  "/tables/page": "app/tables/page.js",
   "/lineage/page": "app/lineage/page.js"
 }
