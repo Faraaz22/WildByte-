@@ -39,6 +39,11 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // When switching database, clear messages so the next reply uses the new DB context
+  useEffect(() => {
+    setMessages([]);
+  }, [databaseId]);
+
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || loading) return;

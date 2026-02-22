@@ -5,9 +5,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.api.dependencies import CurrentUser, get_db
 from src.models.column import Column
 from src.models.database import Database
+from src.models.lineage_edge import LineageEdge
 from src.models.schema import Schema
 from src.models.table import Table
 from src.schemas.chat import ChatMessageRequest, ChatMessageResponse
@@ -15,11 +17,63 @@ from src.services.chat_service import chat_with_schema
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
+DEFAULT_LIMIT_TABLES = 50
+
+
+def _table_to_context_row(table: Table, columns: list) -> dict:
+    """Serialize a table and its columns for schema context."""
+    return {
+        "name": table.name,
+        "table_type": table.table_type,
+        "description": table.description or (getattr(table, "ai_generated_description", None) or ""),
+        "columns": [
+            {
+                "name": c.name,
+                "data_type": c.data_type,
+                "is_nullable": c.is_nullable,
+                "is_primary_key": getattr(c, "is_primary_key", False),
+                "is_foreign_key": getattr(c, "is_foreign_key", False),
+                "foreign_key_ref": (
+                    f"{c.foreign_key_table}.{c.foreign_key_column}"
+                    if (
+                        getattr(c, "is_foreign_key", False)
+                        and getattr(c, "foreign_key_table", None)
+                        and getattr(c, "foreign_key_column", None)
+                    )
+                    else None
+                ),
+            }
+            for c in columns
+        ],
+    }
+
+
+def _lineage_edges_to_context(edges: list, table_id_to_key: dict[int, str]) -> list[dict]:
+    """Build lineage list for context from LineageEdge rows and table id -> key map."""
+    return [
+        {
+            "upstream": table_id_to_key.get(e.upstream_table_id, str(e.upstream_table_id)),
+            "downstream": table_id_to_key.get(e.downstream_table_id, str(e.downstream_table_id)),
+            "type": e.relationship_type,
+        }
+        for e in edges
+    ]
+
+
+def _empty_schema_context(database_id: int, database_name: str, schemas: list | None = None) -> dict:
+    """Minimal context when no tables exist."""
+    return {
+        "database_id": database_id,
+        "database_name": database_name,
+        "schemas": [{"name": s.name, "tables": []} for s in schemas] if schemas else [],
+        "lineage": [],
+    }
+
 
 async def _build_schema_context(
     db: AsyncSession,
     database_id: int,
-    limit_tables: int = 50,
+    limit_tables: int = DEFAULT_LIMIT_TABLES,
 ) -> dict | None:
     """Build schema context dict for chat. Returns None if database not found."""
     db_result = await db.execute(
@@ -41,12 +95,7 @@ async def _build_schema_context(
     schemas = list(schemas_result.scalars().all())
     schema_ids = [s.id for s in schemas]
     if not schema_ids:
-        return {
-            "database_id": database_id,
-            "database_name": database.name,
-            "schemas": [],
-            "lineage": [],
-        }
+        return _empty_schema_context(database_id, database.name)
 
     tables_q = (
         select(Table)
@@ -58,12 +107,7 @@ async def _build_schema_context(
     tables = list(tables_result.scalars().all())
     table_ids = [t.id for t in tables]
     if not table_ids:
-        return {
-            "database_id": database_id,
-            "database_name": database.name,
-            "schemas": [{"name": s.name, "tables": []} for s in schemas],
-            "lineage": [],
-        }
+        return _empty_schema_context(database_id, database.name, schemas)
 
     columns_q = (
         select(Column)
@@ -82,25 +126,8 @@ async def _build_schema_context(
         sname = schema_by_id.get(t.schema_id, "")
         tables_by_schema.setdefault(sname, [])
         cols = columns_by_table.get(t.id, [])
-        fk_ref = None
-        tables_by_schema[sname].append({
-            "name": t.name,
-            "table_type": t.table_type,
-            "description": t.description or (getattr(t, "ai_generated_description", None) or ""),
-            "columns": [
-                {
-                    "name": c.name,
-                    "data_type": c.data_type,
-                    "is_nullable": c.is_nullable,
-                    "is_primary_key": getattr(c, "is_primary_key", False),
-                    "is_foreign_key": getattr(c, "is_foreign_key", False),
-                    "foreign_key_ref": f"{c.foreign_key_table}.{c.foreign_key_column}" if (getattr(c, "is_foreign_key", False) and getattr(c, "foreign_key_table", None) and getattr(c, "foreign_key_column", None)) else None,
-                }
-                for c in cols
-            ],
-        })
+        tables_by_schema[sname].append(_table_to_context_row(t, cols))
 
-    from src.models.lineage_edge import LineageEdge
     edges_q = select(LineageEdge).where(
         LineageEdge.deleted_at.is_(None),
         LineageEdge.upstream_table_id.in_(table_ids),
@@ -108,18 +135,8 @@ async def _build_schema_context(
     )
     edges_result = await db.execute(edges_q)
     edges = list(edges_result.scalars().all())
-    table_id_to_key: dict[int, str] = {}
-    for t in tables:
-        sname = schema_by_id.get(t.schema_id, "")
-        table_id_to_key[t.id] = f"{sname}.{t.name}"
-    lineage = [
-        {
-            "upstream": table_id_to_key.get(e.upstream_table_id, str(e.upstream_table_id)),
-            "downstream": table_id_to_key.get(e.downstream_table_id, str(e.downstream_table_id)),
-            "type": e.relationship_type,
-        }
-        for e in edges
-    ]
+    table_id_to_key = {t.id: f"{schema_by_id.get(t.schema_id, '')}.{t.name}" for t in tables}
+    lineage = _lineage_edges_to_context(edges, table_id_to_key)
 
     schema_list = [
         {"name": name, "tables": tbl_list}
@@ -181,7 +198,7 @@ async def get_schema_context_for_agent(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     database_id: int = Query(..., description="Database ID to export"),
-    limit_tables: int = Query(50, ge=1, le=500, description="Max tables to include (for large DBs)"),
+    limit_tables: int = Query(DEFAULT_LIMIT_TABLES, ge=1, le=500, description="Max tables to include (for large DBs)"),
     search: str | None = Query(None, description="Filter tables by name/description"),
 ) -> dict:
     """
@@ -208,12 +225,7 @@ async def get_schema_context_for_agent(
     schemas = list(schemas_result.scalars().all())
     schema_ids = [s.id for s in schemas]
     if not schema_ids:
-        return {
-            "database_id": database_id,
-            "database_name": database.name,
-            "schemas": [],
-            "lineage": [],
-        }
+        return _empty_schema_context(database_id, database.name)
 
     tables_q = (
         select(Table)
@@ -231,16 +243,7 @@ async def get_schema_context_for_agent(
     tables = list(tables_result.scalars().all())
     table_ids = [t.id for t in tables]
     if not table_ids:
-        schema_list = [
-            {"name": s.name, "tables": []}
-            for s in schemas
-        ]
-        return {
-            "database_id": database_id,
-            "database_name": database.name,
-            "schemas": schema_list,
-            "lineage": [],
-        }
+        return _empty_schema_context(database_id, database.name, schemas)
 
     columns_q = (
         select(Column)
@@ -254,28 +257,11 @@ async def get_schema_context_for_agent(
         columns_by_table.setdefault(c.table_id, []).append(c)
 
     schema_by_id = {s.id: s.name for s in schemas}
-    tables_by_schema: dict[str, list] = {}
+    tables_by_schema = {}
     for t in tables:
         sname = schema_by_id.get(t.schema_id, "")
-        tables_by_schema.setdefault(sname, [])
-        cols = columns_by_table.get(t.id, [])
-        tables_by_schema[sname].append({
-            "name": t.name,
-            "table_type": t.table_type,
-            "description": t.description or t.ai_generated_description,
-            "columns": [
-                {
-                    "name": c.name,
-                    "data_type": c.data_type,
-                    "is_nullable": c.is_nullable,
-                    "is_primary_key": getattr(c, "is_primary_key", False),
-                    "is_foreign_key": getattr(c, "is_foreign_key", False),
-                }
-                for c in cols
-            ],
-        })
+        tables_by_schema.setdefault(sname, []).append(_table_to_context_row(t, columns_by_table.get(t.id, [])))
 
-    from src.models.lineage_edge import LineageEdge
     edges_q = select(LineageEdge).where(
         LineageEdge.deleted_at.is_(None),
         LineageEdge.upstream_table_id.in_(table_ids),
@@ -283,18 +269,8 @@ async def get_schema_context_for_agent(
     )
     edges_result = await db.execute(edges_q)
     edges = list(edges_result.scalars().all())
-    table_id_to_key: dict[int, str] = {}
-    for t in tables:
-        sname = schema_by_id.get(t.schema_id, "")
-        table_id_to_key[t.id] = f"{sname}.{t.name}"
-    lineage = [
-        {
-            "upstream": table_id_to_key.get(e.upstream_table_id, str(e.upstream_table_id)),
-            "downstream": table_id_to_key.get(e.downstream_table_id, str(e.downstream_table_id)),
-            "type": e.relationship_type,
-        }
-        for e in edges
-    ]
+    table_id_to_key = {t.id: f"{schema_by_id.get(t.schema_id, '')}.{t.name}" for t in tables}
+    lineage = _lineage_edges_to_context(edges, table_id_to_key)
 
     schema_list = [
         {"name": name, "tables": tbl_list}

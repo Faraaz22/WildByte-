@@ -11,13 +11,26 @@ from src.models.lineage_edge import LineageEdge
 from src.models.schema import Schema
 from src.models.table import Table
 from src.schemas.lineage import (
-    LineageGraphResponse,
-    LineageFullGraphResponse,
-    LineageNodeResponse,
     LineageEdgeResponse,
+    LineageFullGraphResponse,
+    LineageGraphResponse,
+    LineageNodeResponse,
 )
 
 router = APIRouter(tags=["lineage"])
+
+
+def _edge_to_response(edge: LineageEdge) -> LineageEdgeResponse:
+    """Map a LineageEdge model to API response schema."""
+    return LineageEdgeResponse(
+        source=edge.upstream_table_id,
+        target=edge.downstream_table_id,
+        relationship_type=edge.relationship_type,
+        label=edge.description,
+        column_mapping=edge.column_mapping.get("pairs", []) if edge.column_mapping else None,
+        cardinality=edge.metadata_json.get("cardinality") if edge.metadata_json else None,
+        is_join_table=edge.metadata_json.get("is_join_table") if edge.metadata_json else None,
+    )
 
 
 @router.get("/lineage", response_model=LineageFullGraphResponse)
@@ -54,18 +67,7 @@ async def get_full_lineage(
         LineageEdge.downstream_table_id.in_(table_ids),
     )
     edges_result = await db.execute(edges_q)
-    edges = [
-        LineageEdgeResponse(
-            source=e.upstream_table_id,
-            target=e.downstream_table_id,
-            relationship_type=e.relationship_type,
-            label=e.description,
-            column_mapping=e.column_mapping.get("pairs", []) if e.column_mapping else None,
-            cardinality=e.metadata_json.get("cardinality") if e.metadata_json else None,
-            is_join_table=e.metadata_json.get("is_join_table") if e.metadata_json else None,
-        )
-        for e in edges_result.scalars().all()
-    ]
+    edges = [_edge_to_response(e) for e in edges_result.scalars().all()]
     return LineageFullGraphResponse(nodes=nodes, edges=edges)
 
 
@@ -118,18 +120,7 @@ async def get_table_lineage(
                     level=0,
                 )
             )
-    graph_edges = [
-        LineageEdgeResponse(
-            source=e.upstream_table_id,
-            target=e.downstream_table_id,
-            relationship_type=e.relationship_type,
-            label=e.description,
-            column_mapping=e.column_mapping.get("pairs", []) if e.column_mapping else None,
-            cardinality=e.metadata_json.get("cardinality") if e.metadata_json else None,
-            is_join_table=e.metadata_json.get("is_join_table") if e.metadata_json else None,
-        )
-        for e in edges
-    ]
+    graph_edges = [_edge_to_response(e) for e in edges]
     return LineageGraphResponse(
         nodes=nodes,
         edges=graph_edges,

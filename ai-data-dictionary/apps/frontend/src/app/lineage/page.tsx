@@ -58,21 +58,13 @@ export default function LineagePage() {
     downstreamBySource.get(e.source)!.push(e.target);
   }
 
+  // Edge direction: source = upstream (referenced table), target = downstream (referencing table).
+  // Roots = no incoming edges (source tables). Leaves = no outgoing edges (sink tables).
   const roots = nodes.filter((n) => !(upstreamByTarget.get(n.id)?.length));
   const leaves = nodes.filter((n) => !(downstreamBySource.get(n.id)?.length));
   const middle = nodes.filter(
     (n) =>
       (upstreamByTarget.get(n.id)?.length ?? 0) > 0 &&
-      (downstreamBySource.get(n.id)?.length ?? 0) > 0
-  );
-  const onlyUpstream = nodes.filter(
-    (n) =>
-      (upstreamByTarget.get(n.id)?.length ?? 0) > 0 &&
-      !(downstreamBySource.get(n.id)?.length ?? 0)
-  );
-  const onlyDownstream = nodes.filter(
-    (n) =>
-      !(upstreamByTarget.get(n.id)?.length ?? 0) &&
       (downstreamBySource.get(n.id)?.length ?? 0) > 0
   );
 
@@ -133,7 +125,7 @@ export default function LineagePage() {
             </div>
             <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">Source tables (no refs)</p>
-              <p className="text-xl font-semibold text-[var(--color-text)]">{roots.length + onlyUpstream.length}</p>
+              <p className="text-xl font-semibold text-[var(--color-text)]">{roots.length}</p>
             </div>
           </div>
 
@@ -234,13 +226,13 @@ export default function LineagePage() {
           <div className="overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-6 shadow-sm">
             <h3 className="mb-4 text-sm font-semibold text-[var(--color-text)]">Table groups</h3>
             <div className="flex flex-wrap items-start justify-center gap-6 md:gap-10">
-              {(onlyUpstream.length > 0 || roots.length > 0) && (
+              {roots.length > 0 && (
                 <>
                   <div className="flex flex-col gap-2">
                     <p className="text-center text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
-                      Upstream / Roots
+                      Sources / Roots (no incoming refs)
                     </p>
-                    {(onlyUpstream.length > 0 ? onlyUpstream : roots).map((n) => (
+                    {roots.map((n) => (
                       <div
                         key={n.id}
                         className="flex min-w-[160px] items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2"
@@ -259,13 +251,13 @@ export default function LineagePage() {
                 </>
               )}
 
-              {(middle.length > 0 || roots.length > 0) && (
+              {middle.length > 0 && (
                 <>
                   <div className="flex flex-col gap-2">
                     <p className="text-center text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
-                      Core
+                      Core (both incoming and outgoing)
                     </p>
-                    {(middle.length > 0 ? middle : roots).slice(0, 15).map((n) => (
+                    {middle.slice(0, 15).map((n) => (
                       <div
                         key={n.id}
                         className="flex min-w-[160px] items-center gap-2 rounded-lg border-2 border-primary bg-primary/10 px-3 py-2"
@@ -284,12 +276,12 @@ export default function LineagePage() {
                 </>
               )}
 
-              {(onlyDownstream.length > 0 || leaves.length > 0) && (
+              {leaves.length > 0 && (
                 <div className="flex flex-col gap-2">
                   <p className="text-center text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
-                    Downstream / Leaves
+                    Sinks / Leaves (no outgoing refs)
                   </p>
-                  {(onlyDownstream.length > 0 ? onlyDownstream : leaves).slice(0, 15).map((n) => (
+                  {leaves.slice(0, 15).map((n) => (
                     <div
                       key={n.id}
                       className="flex min-w-[160px] items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2"

@@ -1,6 +1,5 @@
 """Chat service using Gemini (free tier: gemini-1.5-flash)."""
 
-import json
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -9,6 +8,23 @@ from uuid import uuid4
 from src.config.settings import get_settings
 
 settings = get_settings()
+
+
+def _error_response(
+    message: str,
+    conversation_id: str | None = None,
+    error_code: str | None = None,
+) -> dict[str, Any]:
+    """Build a consistent error response for chat."""
+    return {
+        "response": message,
+        "conversation_id": conversation_id or str(uuid4()),
+        "message_id": str(uuid4()),
+        "intent": "clarification",
+        "processing_time_ms": 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **({"error": error_code} if error_code else {}),
+    }
 
 
 def _format_schema_for_prompt(context: dict) -> str:
@@ -49,29 +65,21 @@ async def chat_with_schema(
     Returns dict with response, conversation_id, message_id, processing_time_ms, etc.
     """
     if not settings.gemini_api_key:
-        return {
-            "response": "Gemini is not configured. Set GEMINI_API_KEY in .env to use chat.",
-            "conversation_id": conversation_id or str(uuid4()),
-            "message_id": str(uuid4()),
-            "intent": "clarification",
-            "processing_time_ms": 0,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "error": "missing_gemini_api_key",
-        }
+        return _error_response(
+            "Gemini is not configured. Set GEMINI_API_KEY in .env to use chat.",
+            conversation_id,
+            "missing_gemini_api_key",
+        )
 
     try:
         try:
             import google.generativeai as genai
         except ImportError as ie:
-            return {
-                "response": "Chat requires the google-generativeai package. From the backend folder run: pip install google-generativeai (or install from requirements.txt). Then restart the backend.",
-                "conversation_id": conversation_id or str(uuid4()),
-                "message_id": str(uuid4()),
-                "intent": "clarification",
-                "processing_time_ms": 0,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "error": str(ie),
-            }
+            return _error_response(
+                "Chat requires the google-generativeai package. From the backend folder run: pip install google-generativeai (or install from requirements.txt). Then restart the backend.",
+                conversation_id,
+                str(ie),
+            )
 
         genai.configure(api_key=settings.gemini_api_key)
         model = genai.GenerativeModel(settings.gemini_model)
@@ -115,12 +123,4 @@ Answer based on the schema and lineage above. Use markdown for lists and code (e
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
-        return {
-            "response": f"Sorry, an error occurred: {str(e)}",
-            "conversation_id": conversation_id or str(uuid4()),
-            "message_id": str(uuid4()),
-            "intent": "clarification",
-            "processing_time_ms": 0,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "error": str(e),
-        }
+        return _error_response(f"Sorry, an error occurred: {str(e)}", conversation_id, str(e))
